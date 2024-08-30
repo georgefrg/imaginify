@@ -8,7 +8,7 @@ import { createUser, deleteUser, updateUser } from "@/lib/actions/user.actions";
 
 export async function POST(req: Request) {
   // You can find this in the Clerk Dashboard -> Webhooks -> choose the webhook
-  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET_KEY;
 
   if (!WEBHOOK_SECRET) {
     throw new Error(
@@ -57,20 +57,29 @@ export async function POST(req: Request) {
   const eventType = evt.type;
 
   // CREATE
+  // CREATE
   if (eventType === "user.created") {
     const { id, email_addresses, image_url, first_name, last_name, username } =
       evt.data;
 
+    const email = email_addresses?.[0]?.email_address;
+    if (!email) {
+      console.error("No email address found for user creation");
+      return new Response("Error: No email address found", { status: 400 });
+    }
+
     const user = {
       clerkId: id,
-      email: email_addresses[0].email_address,
+      email,
       username: username!,
       firstName: first_name,
       lastName: last_name,
       photo: image_url,
     };
 
+    console.log("Creating new user:", user);
     const newUser = await createUser(user);
+    console.log("New user created:", newUser);
 
     // Set public metadata
     if (newUser) {
@@ -79,6 +88,9 @@ export async function POST(req: Request) {
           userId: newUser._id,
         },
       });
+    } else {
+      console.error("User creation failed");
+      return new Response("Error creating user", { status: 500 });
     }
 
     return NextResponse.json({ message: "OK", user: newUser });
